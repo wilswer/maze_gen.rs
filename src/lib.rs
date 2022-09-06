@@ -52,12 +52,7 @@ impl Cell {
         }
     }
     pub fn has_wall_at_dir(&mut self, dir: Direction) -> bool {
-        match dir {
-            Direction::Up => self.up,
-            Direction::Down => self.down,
-            Direction::Left => self.left,
-            Direction::Right => self.right,
-        }
+        !self.is_open_at_dir(dir)
     }
 }
 
@@ -103,23 +98,6 @@ impl Maze {
         }
     }
 
-    // pub fn set(&mut self, x: usize, y: usize, value: bool) {
-    //     self.cells[y * self.width + x].visited = value;
-    // }
-
-    // pub fn reset(&self) {
-    //     for cell in &self.cells {
-    //         cell.reset();
-    //     }
-    // }
-
-    // pub fn open_all(&mut self) {
-    //     for cell in &self.cells {
-    //         cell.up = false;
-    //         cell.down = false;
-    //     }
-    // }
-
     pub fn is_wall_at_dir(&self, x: usize, y: usize, dir: &Direction) -> bool {
         match dir {
             Direction::Up => y == 0,
@@ -153,13 +131,12 @@ impl Maze {
         }
     }
 
-    pub fn print(&self, path: Option<&str>) -> Result<()> {
+    pub fn print(&self, path: Option<&str>, do_print: bool) -> Result<()> {
         let mut maze_str = String::new();
         let mut horizontal_wall_str: String = String::new();
         horizontal_wall_str += "┌   ┬";
         horizontal_wall_str += &"---┬".repeat(self.width - 2);
         horizontal_wall_str += "---┐";
-        println!("{}", horizontal_wall_str);
         maze_str += &(horizontal_wall_str + "\n");
         for y in 0..self.height - 1 {
             let mut horizontal_wall_str: String = String::new();
@@ -179,14 +156,12 @@ impl Maze {
                 }
             }
             vertical_wall_str += "   │";
-            println!("{}", vertical_wall_str);
             maze_str += &(vertical_wall_str + "\n");
             if self.is_open_at_dir(self.width - 1, y, &Direction::Down) {
                 horizontal_wall_str += "   ┤";
             } else {
                 horizontal_wall_str += "---┤";
             }
-            println!("{}", horizontal_wall_str);
             maze_str += &(horizontal_wall_str + "\n");
         }
         let mut vertical_wall_str: String = String::new();
@@ -203,10 +178,11 @@ impl Maze {
         horizontal_wall_str += "└";
         horizontal_wall_str += &"---┴".repeat(self.width - 1);
         horizontal_wall_str += "   ┘";
-        println!("{}", vertical_wall_str);
-        println!("{}", horizontal_wall_str);
         maze_str += &(vertical_wall_str + "\n");
         maze_str += &(horizontal_wall_str + "\n");
+        if do_print {
+            print!("{}", maze_str);
+        }
         if !path.is_none() {
             let mut file = File::create(path.unwrap())?;
             file.write_all(maze_str.as_bytes())?;
