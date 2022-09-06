@@ -18,6 +18,7 @@ pub struct Cell {
     pub down: bool,
     pub left: bool,
     pub right: bool,
+    pub in_solution: bool,
 }
 
 impl Cell {
@@ -27,6 +28,7 @@ impl Cell {
             down: true,
             left: true,
             right: true,
+            in_solution: false,
         }
     }
     pub fn reset(&mut self) {
@@ -34,6 +36,7 @@ impl Cell {
         self.down = true;
         self.left = true;
         self.right = true;
+        self.in_solution = false;
     }
     pub fn open(&mut self, dir: Direction) {
         match dir {
@@ -53,6 +56,9 @@ impl Cell {
     }
     pub fn has_wall_at_dir(&mut self, dir: Direction) -> bool {
         !self.is_open_at_dir(dir)
+    }
+    pub fn add_to_solution(&mut self) {
+        self.in_solution = true;
     }
 }
 
@@ -240,6 +246,57 @@ pub fn generate(maze: &mut Maze) {
             stack.push((nx, ny));
         }
         if stack.len() == 0 {
+            break;
+        }
+    }
+}
+
+pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
+    let mut stack: Vec<(usize, usize)> = Vec::new();
+    let mut visited: HashSet<(usize, usize)> = HashSet::new();
+    let mut x: usize = start.0;
+    let mut y: usize = start.1;
+    let mut dir: Direction;
+    let mut dir_index: usize;
+    let dirs: Vec<Direction> = vec![
+        Direction::Up,
+        Direction::Down,
+        Direction::Left,
+        Direction::Right,
+    ];
+    let mut rng = rand::thread_rng();
+    visited.insert((x, y));
+    stack.push((x, y));
+    loop {
+        (x, y) = stack.pop().unwrap();
+        let mut unvisited_neighbors: Vec<Direction> = Vec::new();
+        for dir in dirs.iter() {
+            if !maze.is_wall_at_dir(x, y, dir) && maze.is_open_at_dir(x, y, dir) {
+                let (nx, ny) = match dir {
+                    Direction::Up => (x, y - 1),
+                    Direction::Down => (x, y + 1),
+                    Direction::Left => (x - 1, y),
+                    Direction::Right => (x + 1, y),
+                };
+                if !visited.contains(&(nx, ny)) {
+                    unvisited_neighbors.push(*dir);
+                }
+            }
+        }
+        if unvisited_neighbors.len() > 0 {
+            stack.push((x, y));
+            dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            dir = unvisited_neighbors[dir_index];
+            let (nx, ny) = match dir {
+                Direction::Up => (x, y - 1),
+                Direction::Down => (x, y + 1),
+                Direction::Left => (x - 1, y),
+                Direction::Right => (x + 1, y),
+            };
+            visited.insert((nx, ny));
+            stack.push((nx, ny));
+        }
+        if visited.contains(&stop) {
             break;
         }
     }

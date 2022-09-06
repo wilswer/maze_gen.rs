@@ -1,6 +1,9 @@
-use maze_gen::{generate, Maze};
+use maze_gen::{generate, solve, Maze};
 pub fn main() {
-    let mut maze = Maze::new(20, 15);
+    const WIDTH: usize = 20;
+    const HEIGHT: usize = 15;
+    let mut maze = Maze::new(WIDTH, WIDTH);
     generate(&mut maze);
     maze.print(Some("out.txt"), true).unwrap();
+    solve(&mut maze, (0, 0), (WIDTH - 1, HEIGHT - 1));
 }
