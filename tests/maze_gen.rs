@@ -10,4 +10,6 @@ fn test_maze() {
     maze.set(9, 9, &Direction::Down, false);
     maze.reset();
     assert_eq!(maze.get(9, 9).down, true);
+    maze.add_cell_to_solution(0, 0);
+    assert_eq!(maze.get(0, 0).in_solution, true);
 }

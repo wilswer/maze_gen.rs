@@ -46,7 +46,7 @@ impl Cell {
             Direction::Right => self.right = false,
         }
     }
-    pub fn is_open_at_dir(&mut self, dir: Direction) -> bool {
+    pub fn is_open_at_dir(&self, dir: Direction) -> bool {
         match dir {
             Direction::Up => !self.up,
             Direction::Down => !self.down,
@@ -54,7 +54,7 @@ impl Cell {
             Direction::Right => !self.right,
         }
     }
-    pub fn has_wall_at_dir(&mut self, dir: Direction) -> bool {
+    pub fn has_wall_at_dir(&self, dir: Direction) -> bool {
         !self.is_open_at_dir(dir)
     }
     pub fn add_to_solution(&mut self) {
@@ -76,9 +76,11 @@ impl Maze {
             cells: vec![Cell::new(); width * height],
         }
     }
-
     pub fn get(&self, x: usize, y: usize) -> Cell {
         self.cells[y * self.width + x]
+    }
+    pub fn add_cell_to_solution(&mut self, x: usize, y: usize) {
+        self.cells[y * self.width + x].add_to_solution();
     }
     pub fn set(&mut self, x: usize, y: usize, dir: &Direction, val: bool) {
         match dir {
@@ -88,7 +90,6 @@ impl Maze {
             Direction::Right => self.cells[y * self.width + x].right = val,
         }
     }
-
     pub fn reset(&mut self) {
         for cell in self.cells.iter_mut() {
             cell.reset();
@@ -156,12 +157,24 @@ impl Maze {
                     horizontal_wall_str += "---┼";
                 }
                 if self.is_open_at_dir(x, y, &Direction::Right) {
-                    vertical_wall_str += "    ";
+                    if self.get(x, y).in_solution == true {
+                        vertical_wall_str += " x  ";
+                    } else {
+                        vertical_wall_str += "    ";
+                    }
                 } else {
-                    vertical_wall_str += "   │";
+                    if self.get(x, y).in_solution == true {
+                        vertical_wall_str += " x │";
+                    } else {
+                        vertical_wall_str += "   │";
+                    }
                 }
             }
-            vertical_wall_str += "   │";
+            if self.get(self.width - 1, y).in_solution == true {
+                vertical_wall_str += " x │";
+            } else {
+                vertical_wall_str += "   │";
+            }
             maze_str += &(vertical_wall_str + "\n");
             if self.is_open_at_dir(self.width - 1, y, &Direction::Down) {
                 horizontal_wall_str += "   ┤";
@@ -174,12 +187,24 @@ impl Maze {
         vertical_wall_str += "│";
         for x in 0..self.width - 1 {
             if self.is_open_at_dir(x, self.height - 1, &Direction::Right) {
-                vertical_wall_str += "    ";
+                if self.get(x, self.height - 1).in_solution == true {
+                    vertical_wall_str += " x  ";
+                } else {
+                    vertical_wall_str += "    ";
+                }
             } else {
-                vertical_wall_str += "   │";
+                if self.get(x, self.height - 1).in_solution == true {
+                    vertical_wall_str += " x │";
+                } else {
+                    vertical_wall_str += "   │";
+                }
             }
         }
-        vertical_wall_str += "   │";
+        if self.get(self.width - 1, self.height - 1).in_solution == true {
+            vertical_wall_str += " x │";
+        } else {
+            vertical_wall_str += "   │";
+        }
         let mut horizontal_wall_str: String = String::new();
         horizontal_wall_str += "└";
         horizontal_wall_str += &"---┴".repeat(self.width - 1);
@@ -249,6 +274,9 @@ pub fn generate(maze: &mut Maze) {
             break;
         }
     }
+    for cell in maze.cells.iter() {
+        println!("{:?}", cell);
+    }
 }
 
 pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
@@ -266,6 +294,7 @@ pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
     ];
     let mut rng = rand::thread_rng();
     visited.insert((x, y));
+    maze.add_cell_to_solution(x, y);
     stack.push((x, y));
     loop {
         (x, y) = stack.pop().unwrap();
@@ -293,8 +322,12 @@ pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
                 Direction::Left => (x - 1, y),
                 Direction::Right => (x + 1, y),
             };
+            maze.add_cell_to_solution(nx, ny);
             visited.insert((nx, ny));
             stack.push((nx, ny));
+        }
+        for v in visited.iter() {
+            println!("{:?}", v);
         }
         if visited.contains(&stop) {
             break;
