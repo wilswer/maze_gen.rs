@@ -274,14 +274,12 @@ pub fn generate(maze: &mut Maze) {
             break;
         }
     }
-    for cell in maze.cells.iter() {
-        println!("{:?}", cell);
-    }
 }
 
 pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
     let mut stack: Vec<(usize, usize)> = Vec::new();
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
+    let mut visited_list: Vec<(usize, usize)> = Vec::new();
     let mut x: usize = start.0;
     let mut y: usize = start.1;
     let mut dir: Direction;
@@ -294,7 +292,7 @@ pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
     ];
     let mut rng = rand::thread_rng();
     visited.insert((x, y));
-    maze.add_cell_to_solution(x, y);
+    visited_list.push((x, y));
     stack.push((x, y));
     loop {
         (x, y) = stack.pop().unwrap();
@@ -322,15 +320,31 @@ pub fn solve(maze: &mut Maze, start: (usize, usize), stop: (usize, usize)) {
                 Direction::Left => (x - 1, y),
                 Direction::Right => (x + 1, y),
             };
-            maze.add_cell_to_solution(nx, ny);
             visited.insert((nx, ny));
+            visited_list.push((nx, ny));
             stack.push((nx, ny));
-        }
-        for v in visited.iter() {
-            println!("{:?}", v);
         }
         if visited.contains(&stop) {
             break;
+        }
+    }
+    let mut solution_list: Vec<(usize, usize)> = Vec::new();
+    let mut current: (usize, usize) = visited_list.pop().unwrap();
+    solution_list.push(current);
+    maze.add_cell_to_solution(current.0, current.1);
+    for v in visited_list.iter().rev() {
+        current = *v;
+        let mut neighbor_set: HashSet<(usize, usize)> =
+            HashSet::from([(current.0 + 1, current.1), (current.0, current.1 + 1)]);
+        if current.0 > 0 {
+            neighbor_set.insert((current.0 - 1, current.1));
+        }
+        if current.1 > 0 {
+            neighbor_set.insert((current.0, current.1 - 1));
+        }
+        if neighbor_set.contains(solution_list.last().unwrap()) {
+            solution_list.push(current);
+            maze.add_cell_to_solution(current.0, current.1);
         }
     }
 }
