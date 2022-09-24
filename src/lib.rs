@@ -1,10 +1,10 @@
+use rand::Rng;
 use std::{
     collections::HashSet,
     fs::File,
     io::{Result, Write},
 };
 
-use rand::Rng;
 #[derive(Copy, Clone)]
 pub enum Direction {
     Up,
@@ -12,6 +12,7 @@ pub enum Direction {
     Left,
     Right,
 }
+
 #[derive(Copy, Clone, Debug)]
 pub struct Cell {
     pub up: bool,
