@@ -1,4 +1,5 @@
-use maze_gen::{Direction, Maze};
+use maze_gen::maze::Maze;
+use maze_gen::utils::Direction;
 
 #[test]
 fn test_maze() {
