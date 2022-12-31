@@ -1,9 +1,28 @@
+use clap::Parser;
 use maze_gen::{generate, solve, Maze};
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Width of the maze
+    #[clap(long, short, default_value_t = 16)]
+    columns: usize,
+    /// Height of the maze
+    #[clap(long, short, default_value_t = 16)]
+    rows: usize,
+    /// Don't print the maze to stdout
+    #[clap(long, action, default_value_t = false)]
+    silent: bool,
+    /// Solve the maze
+    #[clap(long, short, action, default_value_t = false)]
+    solve: bool,
+}
 pub fn main() {
-    const WIDTH: usize = 160;
-    const HEIGHT: usize = 90;
-    let mut maze = Maze::new(WIDTH, HEIGHT);
+    let args = Cli::parse();
+    let mut maze = Maze::new(args.columns, args.rows);
     generate(&mut maze);
-    solve(&mut maze, (0, 0), (WIDTH - 1, HEIGHT - 1));
-    maze.print(Some("out.txt"), false).unwrap();
+    if args.solve {
+        solve(&mut maze, (0, 0), (args.columns - 1, args.rows - 1));
+    }
+    maze.print(Some("out.txt"), !args.silent).unwrap();
 }
