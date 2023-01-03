@@ -227,12 +227,14 @@ impl Maze {
     }
 }
 
-pub fn generate(maze: &mut Maze, col_weight: usize, row_weight: usize) {
+pub fn generate(maze: &mut Maze, bias: f64, length_bias: f64) {
     maze.reset();
     let mut stack: Vec<(usize, usize)> = Vec::new();
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
     let mut x: usize = 0;
     let mut y: usize = 0;
+    let row_weight: f64 = 1.0 - bias;
+    let col_weight: f64 = bias;
     let mut dir: Direction;
     let dirs: Vec<Direction> = vec![
         Direction::Up,
@@ -245,13 +247,13 @@ pub fn generate(maze: &mut Maze, col_weight: usize, row_weight: usize) {
     stack.push((x, y));
     loop {
         (x, y) = stack.pop().unwrap();
-        let mut unvisited_neighbors: Vec<(Direction, usize)> = Vec::new();
+        let mut unvisited_neighbors: Vec<(Direction, f64)> = Vec::new();
         for dir in dirs.iter() {
             if !maze.is_wall_at_dir(x, y, dir) {
                 let (nx, ny, weight) = match dir {
-                    Direction::Up => (x, y - 1, col_weight),
+                    Direction::Up => (x, y - 1, col_weight + length_bias),
                     Direction::Down => (x, y + 1, col_weight),
-                    Direction::Left => (x - 1, y, row_weight),
+                    Direction::Left => (x - 1, y, row_weight + length_bias),
                     Direction::Right => (x + 1, y, row_weight),
                 };
                 if !visited.contains(&(nx, ny)) {
