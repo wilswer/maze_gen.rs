@@ -1,4 +1,7 @@
-use rand::Rng;
+use rand::{
+    distributions::{Distribution, WeightedIndex},
+    Rng,
+};
 use std::{
     collections::HashSet,
     fs::File,
@@ -224,14 +227,13 @@ impl Maze {
     }
 }
 
-pub fn generate(maze: &mut Maze) {
+pub fn generate(maze: &mut Maze, col_weight: usize, row_weight: usize) {
     maze.reset();
     let mut stack: Vec<(usize, usize)> = Vec::new();
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
     let mut x: usize = 0;
     let mut y: usize = 0;
     let mut dir: Direction;
-    let mut dir_index: usize;
     let dirs: Vec<Direction> = vec![
         Direction::Up,
         Direction::Down,
@@ -243,24 +245,26 @@ pub fn generate(maze: &mut Maze) {
     stack.push((x, y));
     loop {
         (x, y) = stack.pop().unwrap();
-        let mut unvisited_neighbors: Vec<Direction> = Vec::new();
+        let mut unvisited_neighbors: Vec<(Direction, usize)> = Vec::new();
         for dir in dirs.iter() {
             if !maze.is_wall_at_dir(x, y, dir) {
-                let (nx, ny) = match dir {
-                    Direction::Up => (x, y - 1),
-                    Direction::Down => (x, y + 1),
-                    Direction::Left => (x - 1, y),
-                    Direction::Right => (x + 1, y),
+                let (nx, ny, weight) = match dir {
+                    Direction::Up => (x, y - 1, col_weight),
+                    Direction::Down => (x, y + 1, col_weight),
+                    Direction::Left => (x - 1, y, row_weight),
+                    Direction::Right => (x + 1, y, row_weight),
                 };
                 if !visited.contains(&(nx, ny)) {
-                    unvisited_neighbors.push(*dir);
+                    unvisited_neighbors.push((*dir, weight));
                 }
             }
         }
         if unvisited_neighbors.len() > 0 {
             stack.push((x, y));
-            dir_index = rng.gen_range(0..unvisited_neighbors.len());
-            dir = unvisited_neighbors[dir_index];
+            // dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            // dir = unvisited_neighbors[dir_index];
+            let dist = WeightedIndex::new(unvisited_neighbors.iter().map(|item| item.1)).unwrap();
+            dir = unvisited_neighbors[dist.sample(&mut rng)].0;
             maze.open_at_dir(x, y, &dir);
             let (nx, ny) = match dir {
                 Direction::Up => (x, y - 1),

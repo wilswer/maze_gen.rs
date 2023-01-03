@@ -10,6 +10,11 @@ struct Cli {
     /// Height of the maze
     #[clap(long, short, default_value_t = 16)]
     rows: usize,
+    #[clap(long, default_value_t = 1)]
+    col_weight: usize,
+    /// Height of the maze
+    #[clap(long, default_value_t = 1)]
+    row_weight: usize,
     /// Don't print the maze to stdout
     #[clap(long, action, default_value_t = false)]
     silent: bool,
@@ -20,7 +25,7 @@ struct Cli {
 pub fn main() {
     let args = Cli::parse();
     let mut maze = Maze::new(args.columns, args.rows);
-    generate(&mut maze);
+    generate(&mut maze, args.col_weight, args.row_weight);
     if args.solve {
         solve(&mut maze, (0, 0), (args.columns - 1, args.rows - 1));
     }
