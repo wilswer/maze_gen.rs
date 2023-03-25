@@ -7,6 +7,9 @@ use std::{
     fs::File,
     io::{Result, Write},
 };
+use svg::node::element::path::Data;
+use svg::node::element::{Path, Rectangle};
+use svg::Document;
 
 #[derive(Copy, Clone)]
 pub enum Direction {
@@ -80,6 +83,10 @@ impl Maze {
             cells: vec![Cell::new(); width * height],
         }
     }
+    pub fn open_start_and_end(&mut self) {
+        self.set(0, 0, &Direction::Up, false);
+        self.set(self.width - 1, self.height - 1, &Direction::Down, false);
+    }
     pub fn get(&self, x: usize, y: usize) -> Cell {
         self.cells[y * self.width + x]
     }
@@ -129,16 +136,22 @@ impl Maze {
 
     pub fn open_at_dir(&mut self, x: usize, y: usize, dir: &Direction) {
         match dir {
-            Direction::Up => self.set(x, y, dir, false),
-            Direction::Down => self.set(x, y, dir, false),
-            Direction::Left => self.set(x, y, dir, false),
-            Direction::Right => self.set(x, y, dir, false),
-        }
-        match dir {
-            Direction::Up => self.set(x, y - 1, &Direction::Down, false),
-            Direction::Down => self.set(x, y + 1, &Direction::Up, false),
-            Direction::Left => self.set(x - 1, y, &Direction::Right, false),
-            Direction::Right => self.set(x + 1, y, &Direction::Left, false),
+            Direction::Up => {
+                self.set(x, y, dir, false);
+                self.set(x, y - 1, &Direction::Down, false)
+            }
+            Direction::Down => {
+                self.set(x, y, dir, false);
+                self.set(x, y + 1, &Direction::Up, false)
+            }
+            Direction::Left => {
+                self.set(x, y, dir, false);
+                self.set(x - 1, y, &Direction::Right, false)
+            }
+            Direction::Right => {
+                self.set(x, y, dir, false);
+                self.set(x + 1, y, &Direction::Left, false)
+            }
         }
     }
 
@@ -222,6 +235,82 @@ impl Maze {
             let mut file = File::create(path.unwrap())?;
             file.write_all(maze_str.as_bytes())?;
             return Ok(());
+        }
+        Ok(())
+    }
+
+    pub fn draw(&self, path: Option<&str>, line_thickness: f64, transparency: f64) -> Result<()> {
+        let cell_size = 10;
+        let margin = 5;
+        let mut wall_paths = Vec::new();
+        let mut solution_marks = Vec::new();
+        for x in 0..self.width {
+            for y in 0..self.height {
+                let mut data =
+                    Data::new().move_to((x * cell_size + margin, y * cell_size + margin));
+                if self.is_open_at_dir(x, y, &Direction::Up) {
+                    data = data.move_by((cell_size, 0));
+                } else {
+                    data = data.line_by((cell_size, 0));
+                }
+                if self.is_open_at_dir(x, y, &Direction::Right) {
+                    data = data.move_by((0, cell_size));
+                } else {
+                    data = data.line_by((0, cell_size));
+                }
+                if self.is_open_at_dir(x, y, &Direction::Down) {
+                    data = data.move_by((-(cell_size as i32), 0));
+                } else {
+                    data = data.line_by((-(cell_size as i32), 0));
+                }
+                if self.is_open_at_dir(x, y, &Direction::Left) {
+                    data = data.move_by((0, -(cell_size as i32)));
+                } else {
+                    data = data.line_by((0, -(cell_size as i32)));
+                }
+                let path = Path::new()
+                    .set("fill", "none")
+                    .set("stroke", "black")
+                    .set("stroke-width", line_thickness)
+                    .set("d", data);
+                wall_paths.push(path);
+                // let mut solution_data = Data::new();
+                // if self.get(x, y).in_solution {
+                //     solution_data = solution_data
+                //         .move_to((x * cell_size / 2 + margin, y * cell_size / 2 + margin))
+                // }
+                if self.get(x, y).in_solution {
+                    let solution_circle = Rectangle::new()
+                        .set("x", x * cell_size + margin)
+                        .set("y", y * cell_size + margin)
+                        .set("width", cell_size)
+                        .set("height", cell_size)
+                        .set("fill", "red")
+                        .set("fill-opacity", transparency);
+                    solution_marks.push(solution_circle);
+                }
+            }
+        }
+
+        let mut document = Document::new().set(
+            "viewBox",
+            (
+                0,
+                0,
+                cell_size * self.width + 2 * margin,
+                cell_size * self.height + 2 * margin,
+            ),
+        );
+        for circle in solution_marks {
+            document = document.add(circle);
+        }
+        for path in wall_paths {
+            document = document.add(path);
+        }
+        if !path.is_none() {
+            svg::save(path.unwrap(), &document).unwrap();
+        } else {
+            svg::save("maze.svg", &document).unwrap();
         }
         Ok(())
     }
