@@ -300,11 +300,10 @@ impl Maze {
         for path in wall_paths {
             document = document.add(path);
         }
-        if !path.is_none() {
-            svg::save(format!("{}", path.unwrap()), &document).unwrap();
-        } else {
-            svg::save("maze.svg", &document).unwrap();
-        }
+        svg::save(format!("{}.svg", path.unwrap_or("maze.svg")), &document).unwrap();
+        let svg = std::fs::read_to_string(format!("{}.svg", path.unwrap_or("maze"))).unwrap();
+        let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
+        std::fs::write(format!("{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
         let mut document = Document::new().set(
             "viewBox",
             (
@@ -321,11 +320,11 @@ impl Maze {
             for path in wall_path_copy {
                 document = document.add(path);
             }
-            if !path.is_none() {
-                svg::save(format!("sol_{}", path.unwrap()), &document).unwrap();
-            } else {
-                svg::save("sol_maze.svg", &document).unwrap();
-            }
+            svg::save(format!("sol_{}.svg", path.unwrap_or("maze")), &document).unwrap();
+            let svg =
+                std::fs::read_to_string(format!("sol_{}.svg", path.unwrap_or("maze"))).unwrap();
+            let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
+            std::fs::write(format!("sol_{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
         }
         Ok(())
     }

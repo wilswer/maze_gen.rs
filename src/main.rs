@@ -41,7 +41,7 @@ pub fn main() {
         solve(&mut maze, (0, 0), (args.x - 1, args.y - 1));
     }
     maze.draw(
-        Some(format!("{}.svg", args.output).as_str()),
+        Some(args.output.as_str()),
         args.wall_thickness,
         args.transparency,
     )

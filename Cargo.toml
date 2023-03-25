@@ -9,3 +9,4 @@ edition = "2018"
 rand = "0.8.3"
 clap = { version = "4.0", features = ["derive"] }
 svg = "0.13.0"
+svg2pdf = "0.4.1"
