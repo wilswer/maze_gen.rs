@@ -73,8 +73,8 @@ This will generate a text file `maze.txt` and an SVG file `maze.svg` in the curr
 
 Example SVG output without solution:
 
-![Example SVG output](maze_no_sol.svg)
+![Example SVG output](maze.svg)
 
 Example SVG output with solution marked in red:
 
-![Example SVG output](maze.svg)
+![Example SVG output](sol_maze.svg)

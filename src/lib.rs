@@ -274,20 +274,15 @@ impl Maze {
                     .set("stroke-width", line_thickness)
                     .set("d", data);
                 wall_paths.push(path);
-                // let mut solution_data = Data::new();
-                // if self.get(x, y).in_solution {
-                //     solution_data = solution_data
-                //         .move_to((x * cell_size / 2 + margin, y * cell_size / 2 + margin))
-                // }
                 if self.get(x, y).in_solution {
-                    let solution_circle = Rectangle::new()
+                    let solution_rect = Rectangle::new()
                         .set("x", x * cell_size + margin)
                         .set("y", y * cell_size + margin)
                         .set("width", cell_size)
                         .set("height", cell_size)
                         .set("fill", "red")
                         .set("fill-opacity", transparency);
-                    solution_marks.push(solution_circle);
+                    solution_marks.push(solution_rect);
                 }
             }
         }
@@ -301,16 +296,36 @@ impl Maze {
                 cell_size * self.height + 2 * margin,
             ),
         );
-        for circle in solution_marks {
-            document = document.add(circle);
-        }
+        let wall_path_copy = wall_paths.clone();
         for path in wall_paths {
             document = document.add(path);
         }
         if !path.is_none() {
-            svg::save(path.unwrap(), &document).unwrap();
+            svg::save(format!("{}", path.unwrap()), &document).unwrap();
         } else {
             svg::save("maze.svg", &document).unwrap();
+        }
+        let mut document = Document::new().set(
+            "viewBox",
+            (
+                0,
+                0,
+                cell_size * self.width + 2 * margin,
+                cell_size * self.height + 2 * margin,
+            ),
+        );
+        if solution_marks.len() > 0 {
+            for rect in solution_marks {
+                document = document.add(rect);
+            }
+            for path in wall_path_copy {
+                document = document.add(path);
+            }
+            if !path.is_none() {
+                svg::save(format!("sol_{}", path.unwrap()), &document).unwrap();
+            } else {
+                svg::save("sol_maze.svg", &document).unwrap();
+            }
         }
         Ok(())
     }
