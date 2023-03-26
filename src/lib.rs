@@ -258,14 +258,12 @@ impl Maze {
                 } else {
                     data = data.line_by((0, cell_size));
                 }
-                if self.is_open_at_dir(x, y, &Direction::Down) {
-                    data = data.move_by((-(cell_size as i32), 0));
-                } else {
+                if y == self.height - 1 && !self.is_open_at_dir(x, y, &Direction::Down) {
                     data = data.line_by((-(cell_size as i32), 0));
-                }
-                if self.is_open_at_dir(x, y, &Direction::Left) {
-                    data = data.move_by((0, -(cell_size as i32)));
                 } else {
+                    data = data.move_by((-(cell_size as i32), 0));
+                }
+                if x == 0 && !self.is_open_at_dir(x, y, &Direction::Left) {
                     data = data.line_by((0, -(cell_size as i32)));
                 }
                 let path = Path::new()
@@ -302,8 +300,18 @@ impl Maze {
         }
         svg::save(format!("{}.svg", path.unwrap_or("maze.svg")), &document).unwrap();
         let svg = std::fs::read_to_string(format!("{}.svg", path.unwrap_or("maze"))).unwrap();
-        let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
-        std::fs::write(format!("{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
+        let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default());
+        let ok_pdf = match pdf {
+            Ok(pdf) => {
+                std::fs::write(format!("{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
+                true
+            }
+            Err(e) => {
+                println!("Error: {}, could not produce PDF", e);
+                false
+            }
+        };
+
         let mut document = Document::new().set(
             "viewBox",
             (
@@ -321,10 +329,12 @@ impl Maze {
                 document = document.add(path);
             }
             svg::save(format!("sol_{}.svg", path.unwrap_or("maze")), &document).unwrap();
-            let svg =
-                std::fs::read_to_string(format!("sol_{}.svg", path.unwrap_or("maze"))).unwrap();
-            let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
-            std::fs::write(format!("sol_{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
+            if ok_pdf {
+                let svg =
+                    std::fs::read_to_string(format!("sol_{}.svg", path.unwrap_or("maze"))).unwrap();
+                let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
+                std::fs::write(format!("sol_{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
+            }
         }
         Ok(())
     }
