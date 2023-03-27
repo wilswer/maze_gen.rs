@@ -249,22 +249,22 @@ impl Maze {
                 let mut data =
                     Data::new().move_to((x * cell_size + margin, y * cell_size + margin));
                 if self.is_open_at_dir(x, y, &Direction::Up) {
-                    data = data.move_by((cell_size, 0));
+                    data = data.move_by(((cell_size as f64) + line_thickness / 2.0, 0));
                 } else {
-                    data = data.line_by((cell_size, 0));
+                    data = data.line_by(((cell_size as f64) + line_thickness / 2.0, 0));
                 }
                 if self.is_open_at_dir(x, y, &Direction::Right) {
-                    data = data.move_by((0, cell_size));
+                    data = data.move_by((0, (cell_size as f64) + line_thickness / 2.0));
                 } else {
-                    data = data.line_by((0, cell_size));
+                    data = data.line_by((0, (cell_size as f64) + line_thickness / 2.0));
                 }
                 if y == self.height - 1 && !self.is_open_at_dir(x, y, &Direction::Down) {
-                    data = data.line_by((-(cell_size as i32), 0));
+                    data = data.line_by((-((cell_size as f64) + line_thickness / 2.0), 0));
                 } else {
-                    data = data.move_by((-(cell_size as i32), 0));
+                    data = data.move_by((-((cell_size as f64) + line_thickness / 2.0), 0));
                 }
                 if x == 0 && !self.is_open_at_dir(x, y, &Direction::Left) {
-                    data = data.line_by((0, -(cell_size as i32)));
+                    data = data.line_by((0, -((cell_size as f64) + line_thickness / 2.0)));
                 }
                 let path = Path::new()
                     .set("fill", "none")
