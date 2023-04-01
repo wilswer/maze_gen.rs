@@ -1,8 +1,8 @@
-use maze_gen::{Direction, Maze};
+use maze_gen::rect_maze::{Direction, RectMaze};
 
 #[test]
 fn test_maze() {
-    let mut maze = Maze::new(10, 10);
+    let mut maze = RectMaze::new(10, 10);
     assert_eq!(maze.width, 10);
     assert_eq!(maze.height, 10);
     maze.set(0, 0, &Direction::Up, false);

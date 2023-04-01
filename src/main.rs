@@ -1,5 +1,5 @@
 use clap::Parser;
-use maze_gen::{generate, solve, Maze};
+use maze_gen::rect_maze;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -34,11 +34,10 @@ struct Cli {
 }
 pub fn main() {
     let args = Cli::parse();
-    let mut maze = Maze::new(args.x, args.y);
-    generate(&mut maze, args.bias, args.length_bias);
+    let mut maze = rect_maze::generate(args.x, args.y, args.bias, args.length_bias);
     maze.open_start_and_end();
     if args.solve {
-        solve(&mut maze, (0, 0), (args.x - 1, args.y - 1));
+        rect_maze::solve(&mut maze, (0, 0), (args.x - 1, args.y - 1));
     }
     maze.draw(
         Some(args.output.as_str()),
