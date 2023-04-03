@@ -2,13 +2,9 @@ use rand::{
     distributions::{Distribution, WeightedIndex},
     Rng,
 };
-use std::{
-    collections::HashSet,
-    fs::File,
-    io::{Result, Write},
-};
+use std::{collections::HashSet, io::Result};
 use svg::node::element::path::Data;
-use svg::node::element::{Path, Rectangle};
+use svg::node::element::Path;
 use svg::Document;
 
 #[derive(Copy, Clone)]
@@ -47,6 +43,14 @@ impl Cell {
     }
     pub fn add_to_solution(&mut self) {
         self.in_solution = true;
+    }
+    pub fn set(&mut self, direction: Direction, value: bool) {
+        match direction {
+            Direction::Out => self.outward = value,
+            Direction::In => self.inward = value,
+            Direction::Left => self.left = value,
+            Direction::Right => self.right = value,
+        }
     }
 }
 
@@ -98,6 +102,14 @@ impl CircMaze {
             _ => false,
         }
     }
+    pub fn is_open_at_dir(&self, r: usize, s: usize, dir: &Direction) -> bool {
+        match dir {
+            Direction::In => !self.get(r, s).inward,
+            Direction::Out => !self.get(r, s).outward,
+            Direction::Left => !self.get(r, s).left,
+            Direction::Right => !self.get(r, s).right,
+        }
+    }
     pub fn open_at_dir(&mut self, r: usize, s: usize, dir: &Direction) {
         match dir {
             Direction::In => {
@@ -131,87 +143,55 @@ impl CircMaze {
         }
     }
     pub fn draw(&self, path: Option<&str>, line_thickness: f64, transparency: f64) -> Result<()> {
-        let cell_size = 10;
+        let inner_radius = 3.0;
         let margin = 5;
-        let mut wall_paths = Vec::new();
-        let mut solution_marks = Vec::new();
-        for x in 0..self.width {
-            for y in 0..self.height {
-                let mut data =
-                    Data::new().move_to((x * cell_size + margin, y * cell_size + margin));
-                if self.is_open_at_dir(x, y, &Direction::Up) {
-                    data = data.move_by(((cell_size as f64) + line_thickness / 2.0, 0));
+        let translate = self.rings as f64 + (margin as f64) + inner_radius;
+        let mut arc_paths = Vec::new();
+        // let mut line_paths = Vec::new();
+        for r in 0..self.rings {
+            for s in 0..self.spokes {
+                let r_float = r as f64;
+                let radius = self.rings as f64 + inner_radius;
+                let theta = 2.0 * std::f64::consts::PI * (s as f64) / (self.spokes as f64);
+                let x = (radius - r_float) * theta.cos();
+                let y = (radius - r_float) * theta.sin();
+                let mut data = Data::new().move_to((x + translate, y + translate));
+                // Arcs
+                let end_theta = theta + 2.0 * std::f64::consts::PI / (self.spokes as f64);
+                let end_x = (radius - r_float) * end_theta.cos();
+                let end_y = (radius - r_float) * end_theta.sin();
+                if !self.is_open_at_dir(r, s, &Direction::Out) {
+                    data = data.elliptical_arc_to((
+                        radius,
+                        radius,
+                        0.0,
+                        0,
+                        1,
+                        end_x + translate,
+                        end_y + translate,
+                    ));
                 } else {
-                    data = data.line_by(((cell_size as f64) + line_thickness / 2.0, 0));
+                    data = data.move_to((end_x + translate, end_y + translate));
                 }
-                if self.is_open_at_dir(x, y, &Direction::Right) {
-                    data = data.move_by((0, (cell_size as f64) + line_thickness / 2.0));
-                } else {
-                    data = data.line_by((0, (cell_size as f64) + line_thickness / 2.0));
-                }
-                if y == self.height - 1 && !self.is_open_at_dir(x, y, &Direction::Down) {
-                    data = data.line_by((-((cell_size as f64) + line_thickness / 2.0), 0));
-                } else {
-                    data = data.move_by((-((cell_size as f64) + line_thickness / 2.0), 0));
-                }
-                if x == 0 && !self.is_open_at_dir(x, y, &Direction::Left) {
-                    data = data.line_by((0, -((cell_size as f64) + line_thickness / 2.0)));
+                if !self.is_open_at_dir(r, s, &Direction::Left) {
+                    let inner_x = (radius - r_float - 1.0) * end_theta.cos();
+                    let inner_y = (radius - r_float - 1.0) * end_theta.sin();
+                    data = data.line_to((inner_x + translate, inner_y + translate));
                 }
                 let path = Path::new()
                     .set("fill", "none")
                     .set("stroke", "black")
                     .set("stroke-width", line_thickness)
                     .set("d", data);
-                wall_paths.push(path);
-                if self.get(x, y).in_solution {
-                    let solution_rect = Rectangle::new()
-                        .set("x", x * cell_size + margin)
-                        .set("y", y * cell_size + margin)
-                        .set("width", cell_size)
-                        .set("height", cell_size)
-                        .set("fill", "red")
-                        .set("fill-opacity", transparency);
-                    solution_marks.push(solution_rect);
-                }
+                arc_paths.push(path);
             }
         }
 
-        let mut document = Document::new().set(
-            "viewBox",
-            (
-                0,
-                0,
-                cell_size * self.width + 2 * margin,
-                cell_size * self.height + 2 * margin,
-            ),
-        );
-        let wall_path_copy = wall_paths.clone();
-        for path in wall_paths {
-            document = document.add(path);
+        let mut document = Document::new().set("viewBox", (0, 0, 2.0 * translate, 2.0 * translate));
+        for arc in arc_paths {
+            document = document.add(arc);
         }
         svg::save(format!("{}.svg", path.unwrap_or("maze.svg")), &document).unwrap();
-        let svg = std::fs::read_to_string(format!("{}.svg", path.unwrap_or("maze"))).unwrap();
-        let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default());
-        let ok_pdf = match pdf {
-            Ok(pdf) => {
-                std::fs::write(format!("{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
-                true
-            }
-            Err(e) => {
-                println!("Error: {}, could not produce PDF", e);
-                false
-            }
-        };
-
-        let mut document = Document::new().set(
-            "viewBox",
-            (
-                0,
-                0,
-                cell_size * self.width + 2 * margin,
-                cell_size * self.height + 2 * margin,
-            ),
-        );
         Ok(())
     }
 }

@@ -1,8 +1,5 @@
 use clap::{Parser, Subcommand};
-use maze_gen::{
-    circ_maze::{self, CircMaze},
-    rect_maze,
-};
+use maze_gen::{circ_maze, rect_maze};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -54,6 +51,17 @@ enum Commands {
         /// Split frequency, how often to split a spoke
         #[clap(long, short, default_value_t = 0)]
         freq: usize,
+        #[clap(long, short, action, default_value_t = 0.1)]
+        wall_thickness: f64,
+        /// Solution path transparency in SVG
+        #[clap(long, short, action, default_value_t = 0.2)]
+        transparency: f64,
+        /// Output file, without extension
+        #[clap(long, short, default_value = "maze")]
+        output: String,
+        /// Solve the maze
+        #[clap(long, action, default_value_t = false)]
+        solve: bool,
     },
 }
 pub fn main() {
@@ -84,8 +92,15 @@ pub fn main() {
             rings,
             spokes,
             freq,
+            wall_thickness,
+            transparency,
+            output,
+            solve,
         }) => {
-            let mut maze = circ_maze::generate(*rings, *spokes, *freq);
+            let maze = circ_maze::generate(*rings, *spokes, *freq);
+            // let mut maze = circ_maze::CircMaze::new(*rings, *spokes, *freq);
+            maze.draw(Some(output.as_str()), *wall_thickness, *transparency)
+                .unwrap();
         }
         None => {
             println!("No subcommand was used, try --help");
