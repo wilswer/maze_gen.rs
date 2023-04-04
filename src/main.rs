@@ -22,7 +22,7 @@ enum Commands {
         /// Bias towards horizontal or vertical walls (0.0 - 1.0), 0.5 is equal, 0.0 is vertical, 1.0 is horizontal
         #[clap(long, short, default_value_t = 0.5)]
         bias: f64,
-        /// bias towards horizontal or vertical walls (0.0 - 1.0)
+        /// Bias towards longer solutions (0.0 - 1.0)
         #[clap(short, long, default_value_t = 0.0)]
         length_bias: f64,
         /// Print the maze to stdout
@@ -54,6 +54,12 @@ enum Commands {
         #[clap(long, short, default_value_t = 0.5)]
         /// Size of the inner radius
         inner_radius: f64,
+        /// Bias towards horizontal or vertical walls (0.0 - 1.0), 0.5 is equal, 0.0 is vertical, 1.0 is horizontal
+        #[clap(long, short, default_value_t = 0.5)]
+        bias: f64,
+        /// Bias towards longer solutions (0.0 - 1.0)
+        #[clap(short, long, default_value_t = 0.0)]
+        length_bias: f64,
         /// Thickness of the walls in SVG
         #[clap(long, short, action, default_value_t = 0.1)]
         wall_thickness: f64,
@@ -97,13 +103,16 @@ pub fn main() {
             spokes,
             freq,
             inner_radius,
+            bias,
+            length_bias,
             wall_thickness,
             transparency,
             output,
             solve,
         }) => {
-            let maze = circ_maze::generate(*rings, *spokes, *freq);
+            let mut maze = circ_maze::generate(*rings, *spokes, *freq, *bias, *length_bias);
             // let mut maze = circ_maze::CircMaze::new(*rings, *spokes, *freq);
+            maze.open_start_and_end();
             maze.draw(
                 Some(output.as_str()),
                 *wall_thickness,

@@ -171,8 +171,8 @@ impl CircMaze {
                 let end_y = (radius - r_float) * end_theta.sin();
                 if !self.is_open_at_dir(r, s, &Direction::Out) {
                     data = data.elliptical_arc_to((
-                        radius,
-                        radius,
+                        radius - r_float,
+                        radius - r_float,
                         0.0,
                         0,
                         1,
@@ -186,6 +186,22 @@ impl CircMaze {
                     let inner_x = (radius - r_float - 1.0) * end_theta.cos();
                     let inner_y = (radius - r_float - 1.0) * end_theta.sin();
                     data = data.line_to((inner_x + translate, inner_y + translate));
+                }
+                if !self.is_open_at_dir(r, s, &Direction::In) && (r == self.rings - 1) {
+                    let inner_x = inner_radius * theta.cos();
+                    let inner_y = inner_radius * theta.sin();
+                    data = data.move_to((inner_x + translate, inner_y + translate));
+                    let inner_end_x = inner_radius * end_theta.cos();
+                    let inner_end_y = inner_radius * end_theta.sin();
+                    data = data.elliptical_arc_to((
+                        inner_radius,
+                        inner_radius,
+                        0.0,
+                        0,
+                        1,
+                        inner_end_x + translate,
+                        inner_end_y + translate,
+                    ));
                 }
                 let path = Path::new()
                     .set("fill", "none")
@@ -205,12 +221,20 @@ impl CircMaze {
     }
 }
 
-pub fn generate(rings: usize, spokes: usize, split_frequency: usize) -> CircMaze {
+pub fn generate(
+    rings: usize,
+    spokes: usize,
+    split_frequency: usize,
+    bias: f64,
+    length_bias: f64,
+) -> CircMaze {
     let mut maze = CircMaze::new(rings, spokes, split_frequency);
     let mut stack: Vec<(usize, usize)> = Vec::new();
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
     let mut r: usize = 0;
     let mut s: usize = 0;
+    let angle_weight: f64 = 1.0 - bias;
+    let radial_weight: f64 = bias;
     let mut dir: Direction;
     let dirs: Vec<Direction> = vec![
         Direction::In,
@@ -223,38 +247,38 @@ pub fn generate(rings: usize, spokes: usize, split_frequency: usize) -> CircMaze
     stack.push((r, s));
     loop {
         (r, s) = stack.pop().unwrap();
-        let mut unvisited_neighbors: Vec<Direction> = Vec::new();
+        let mut unvisited_neighbors: Vec<(Direction, f64)> = Vec::new();
         for dir in dirs.iter() {
             if !maze.is_wall_at_dir(r, dir) {
-                let (nr, ns) = match dir {
-                    Direction::In => (r + 1, s),
-                    Direction::Out => (r - 1, s),
+                let (nr, ns, weight) = match dir {
+                    Direction::In => (r + 1, s, radial_weight),
+                    Direction::Out => (r - 1, s, radial_weight + length_bias),
                     Direction::Right => {
                         if s > 0 {
-                            (r, s - 1)
+                            (r, s - 1, angle_weight + length_bias)
                         } else {
-                            (r, maze.spokes - 1)
+                            (r, maze.spokes - 1, angle_weight + length_bias)
                         }
                     }
                     Direction::Left => {
                         if s < maze.spokes - 1 {
-                            (r, s + 1)
+                            (r, s + 1, angle_weight + length_bias)
                         } else {
-                            (r, 0)
+                            (r, 0, angle_weight + length_bias)
                         }
                     }
                 };
                 if !visited.contains(&(nr, ns)) {
-                    unvisited_neighbors.push(*dir);
+                    unvisited_neighbors.push((*dir, weight));
                 }
             }
         }
         if unvisited_neighbors.len() > 0 {
             stack.push((r, s));
-            let dir_index = rng.gen_range(0..unvisited_neighbors.len());
-            dir = unvisited_neighbors[dir_index];
-            // let dist = WeightedIndex::new(unvisited_neighbors.iter().map(|item| item.1)).unwrap();
-            // dir = unvisited_neighbors[dist.sample(&mut rng)].0;
+            // let dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            // dir = unvisited_neighbors[dir_index];
+            let dist = WeightedIndex::new(unvisited_neighbors.iter().map(|item| item.1)).unwrap();
+            dir = unvisited_neighbors[dist.sample(&mut rng)].0;
             //println!("r: {}, s: {}, dir: {:?}", r, s, dir);
             maze.open_at_dir(r, s, &dir);
             let (nr, ns) = match dir {
