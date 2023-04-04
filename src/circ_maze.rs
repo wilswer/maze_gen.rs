@@ -76,6 +76,10 @@ impl CircMaze {
             split_frequency,
         }
     }
+    pub fn open_start_and_end(&mut self) {
+        self.set(0, 0, &Direction::Out, false);
+        self.set(self.rings - 1, self.spokes - 1, &Direction::In, false);
+    }
     pub fn reset(&mut self) {
         for cell in self.cells.iter_mut() {
             cell.reset();
@@ -120,32 +124,37 @@ impl CircMaze {
                 self.set(r, s, dir, false);
                 self.set(r - 1, s, &Direction::In, false)
             }
-            Direction::Left => {
-                self.set(r, s, dir, false);
-                {
-                    if s > 0 {
-                        self.set(r, s - 1, &Direction::Right, false)
-                    } else {
-                        self.set(r, self.spokes - 1, &Direction::Right, false)
-                    }
-                }
-            }
             Direction::Right => {
                 self.set(r, s, dir, false);
                 {
-                    if s < self.spokes - 1 {
-                        self.set(r, s + 1, &Direction::Left, false)
+                    if s > 0 {
+                        self.set(r, s - 1, &Direction::Left, false)
                     } else {
-                        self.set(r, 0, &Direction::Left, false)
+                        self.set(r, self.spokes - 1, &Direction::Left, false)
+                    }
+                }
+            }
+            Direction::Left => {
+                self.set(r, s, dir, false);
+                {
+                    if s < self.spokes - 1 {
+                        self.set(r, s + 1, &Direction::Right, false)
+                    } else {
+                        self.set(r, 0, &Direction::Right, false)
                     }
                 }
             }
         }
     }
-    pub fn draw(&self, path: Option<&str>, line_thickness: f64, transparency: f64) -> Result<()> {
-        let inner_radius = 3.0;
-        let margin = 5;
-        let translate = self.rings as f64 + (margin as f64) + inner_radius;
+    pub fn draw(
+        &self,
+        path: Option<&str>,
+        line_thickness: f64,
+        transparency: f64,
+        inner_radius: f64,
+    ) -> Result<()> {
+        let margin = 5.0;
+        let translate = self.rings as f64 + margin + inner_radius;
         let mut arc_paths = Vec::new();
         // let mut line_paths = Vec::new();
         for r in 0..self.rings {
@@ -220,14 +229,14 @@ pub fn generate(rings: usize, spokes: usize, split_frequency: usize) -> CircMaze
                 let (nr, ns) = match dir {
                     Direction::In => (r + 1, s),
                     Direction::Out => (r - 1, s),
-                    Direction::Left => {
+                    Direction::Right => {
                         if s > 0 {
                             (r, s - 1)
                         } else {
                             (r, maze.spokes - 1)
                         }
                     }
-                    Direction::Right => {
+                    Direction::Left => {
                         if s < maze.spokes - 1 {
                             (r, s + 1)
                         } else {
@@ -251,14 +260,14 @@ pub fn generate(rings: usize, spokes: usize, split_frequency: usize) -> CircMaze
             let (nr, ns) = match dir {
                 Direction::In => (r + 1, s),
                 Direction::Out => (r - 1, s),
-                Direction::Left => {
+                Direction::Right => {
                     if s > 0 {
                         (r, s - 1)
                     } else {
                         (r, maze.spokes - 1)
                     }
                 }
-                Direction::Right => {
+                Direction::Left => {
                     if s < maze.spokes - 1 {
                         (r, s + 1)
                     } else {

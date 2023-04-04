@@ -51,6 +51,10 @@ enum Commands {
         /// Split frequency, how often to split a spoke
         #[clap(long, short, default_value_t = 0)]
         freq: usize,
+        #[clap(long, short, default_value_t = 0.5)]
+        /// Size of the inner radius
+        inner_radius: f64,
+        /// Thickness of the walls in SVG
         #[clap(long, short, action, default_value_t = 0.1)]
         wall_thickness: f64,
         /// Solution path transparency in SVG
@@ -92,6 +96,7 @@ pub fn main() {
             rings,
             spokes,
             freq,
+            inner_radius,
             wall_thickness,
             transparency,
             output,
@@ -99,8 +104,13 @@ pub fn main() {
         }) => {
             let maze = circ_maze::generate(*rings, *spokes, *freq);
             // let mut maze = circ_maze::CircMaze::new(*rings, *spokes, *freq);
-            maze.draw(Some(output.as_str()), *wall_thickness, *transparency)
-                .unwrap();
+            maze.draw(
+                Some(output.as_str()),
+                *wall_thickness,
+                *transparency,
+                *inner_radius,
+            )
+            .unwrap();
         }
         None => {
             println!("No subcommand was used, try --help");
