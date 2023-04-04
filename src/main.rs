@@ -115,7 +115,7 @@ pub fn main() {
             maze.open_start_and_end();
             maze.draw(
                 Some(output.as_str()),
-                *wall_thickness,
+                *wall_thickness / 10.0,
                 *transparency,
                 *inner_radius,
             )

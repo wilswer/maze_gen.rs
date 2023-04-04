@@ -1,7 +1,5 @@
-use rand::{
-    distributions::{Distribution, WeightedIndex},
-    Rng,
-};
+use rand::distributions::{Distribution, WeightedIndex};
+use std::f64::consts::PI;
 use std::{collections::HashSet, io::Result};
 use svg::node::element::path::Data;
 use svg::node::element::Path;
@@ -78,7 +76,7 @@ impl CircMaze {
     }
     pub fn open_start_and_end(&mut self) {
         self.set(0, 0, &Direction::Out, false);
-        self.set(self.rings - 1, self.spokes - 1, &Direction::In, false);
+        self.set(self.rings - 1, self.spokes / 2, &Direction::In, false);
     }
     pub fn reset(&mut self) {
         for cell in self.cells.iter_mut() {
@@ -153,20 +151,23 @@ impl CircMaze {
         transparency: f64,
         inner_radius: f64,
     ) -> Result<()> {
-        let margin = 5.0;
+        let margin = 0.5;
         let translate = self.rings as f64 + margin + inner_radius;
         let mut arc_paths = Vec::new();
+        let mut solution_marks = Vec::new();
         // let mut line_paths = Vec::new();
         for r in 0..self.rings {
             for s in 0..self.spokes {
                 let r_float = r as f64;
                 let radius = self.rings as f64 + inner_radius;
-                let theta = 2.0 * std::f64::consts::PI * (s as f64) / (self.spokes as f64);
+                let theta = 2.0 * PI * (s as f64) / (self.spokes as f64)
+                    - PI / 2.0
+                    - PI / (self.spokes as f64);
                 let x = (radius - r_float) * theta.cos();
                 let y = (radius - r_float) * theta.sin();
                 let mut data = Data::new().move_to((x + translate, y + translate));
                 // Arcs
-                let end_theta = theta + 2.0 * std::f64::consts::PI / (self.spokes as f64);
+                let end_theta = theta + 2.0 * PI / (self.spokes as f64);
                 let end_x = (radius - r_float) * end_theta.cos();
                 let end_y = (radius - r_float) * end_theta.sin();
                 if !self.is_open_at_dir(r, s, &Direction::Out) {
@@ -209,12 +210,50 @@ impl CircMaze {
                     .set("stroke-width", line_thickness)
                     .set("d", data);
                 arc_paths.push(path);
+
+                // Solution marks
+                if self.get(r, s).in_solution {
+                    let inner_x = (radius - r_float - 1.0) * end_theta.cos();
+                    let inner_y = (radius - r_float - 1.0) * end_theta.sin();
+                    let inner_x2 = (radius - r_float - 1.0) * theta.cos();
+                    let inner_y2 = (radius - r_float - 1.0) * theta.sin();
+                    let mut data = Data::new().move_to((x + translate, y + translate));
+                    data = data.elliptical_arc_to((
+                        radius - r_float,
+                        radius - r_float,
+                        0.0,
+                        0,
+                        1,
+                        end_x + translate,
+                        end_y + translate,
+                    ));
+                    data = data.line_to((inner_x + translate, inner_y + translate));
+                    data = data.elliptical_arc_to((
+                        radius - r_float - 1.0,
+                        radius - r_float - 1.0,
+                        0.0,
+                        0,
+                        0,
+                        inner_x2 + translate,
+                        inner_y2 + translate,
+                    ));
+                    data = data.close();
+                    let solution_mark = Path::new()
+                        .set("fill", "red")
+                        .set("stroke", "none")
+                        .set("opacity", transparency)
+                        .set("d", data);
+                    solution_marks.push(solution_mark);
+                }
             }
         }
 
         let mut document = Document::new().set("viewBox", (0, 0, 2.0 * translate, 2.0 * translate));
         for arc in arc_paths {
             document = document.add(arc);
+        }
+        for mark in solution_marks {
+            document = document.add(mark);
         }
         svg::save(format!("{}.svg", path.unwrap_or("maze.svg")), &document).unwrap();
         Ok(())
