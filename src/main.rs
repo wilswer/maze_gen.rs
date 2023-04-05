@@ -113,6 +113,9 @@ pub fn main() {
             let mut maze = circ_maze::generate(*rings, *spokes, *freq, *bias, *length_bias);
             // let mut maze = circ_maze::CircMaze::new(*rings, *spokes, *freq);
             maze.open_start_and_end();
+            if *solve {
+                circ_maze::solve(&mut maze, (0, 0), (*rings - 1, *spokes / 2));
+            }
             maze.draw(
                 Some(output.as_str()),
                 *wall_thickness / 10.0,

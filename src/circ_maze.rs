@@ -1,4 +1,5 @@
 use rand::distributions::{Distribution, WeightedIndex};
+use rand::Rng;
 use std::f64::consts::PI;
 use std::{collections::HashSet, io::Result};
 use svg::node::element::path::Data;
@@ -346,4 +347,107 @@ pub fn generate(
         }
     }
     maze
+}
+
+pub fn solve(maze: &mut CircMaze, start: (usize, usize), stop: (usize, usize)) {
+    let mut stack: Vec<(usize, usize)> = Vec::new();
+    let mut visited: HashSet<(usize, usize)> = HashSet::new();
+    let mut visited_list: Vec<(usize, usize)> = Vec::new();
+    let mut r: usize = start.0;
+    let mut s: usize = start.1;
+    let mut dir: Direction;
+    let mut dir_index: usize;
+    let dirs: Vec<Direction> = vec![
+        Direction::In,
+        Direction::Out,
+        Direction::Left,
+        Direction::Right,
+    ];
+    let mut rng = rand::thread_rng();
+    visited.insert((r, s));
+    visited_list.push((r, s));
+    stack.push((r, s));
+    loop {
+        (r, s) = stack.pop().unwrap();
+        let mut unvisited_neighbors: Vec<Direction> = Vec::new();
+        for dir in dirs.iter() {
+            if !maze.is_wall_at_dir(r, dir) && maze.is_open_at_dir(r, s, dir) {
+                let (nr, ns) = match dir {
+                    Direction::In => (r + 1, s),
+                    Direction::Out => (r - 1, s),
+                    Direction::Right => {
+                        if s > 0 {
+                            (r, s - 1)
+                        } else {
+                            (r, maze.spokes - 1)
+                        }
+                    }
+                    Direction::Left => {
+                        if s < maze.spokes - 1 {
+                            (r, s + 1)
+                        } else {
+                            (r, 0)
+                        }
+                    }
+                };
+                if !visited.contains(&(nr, ns)) {
+                    unvisited_neighbors.push(*dir);
+                }
+            }
+        }
+        if unvisited_neighbors.len() > 0 {
+            stack.push((r, s));
+            dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            dir = unvisited_neighbors[dir_index];
+            let (nr, ns) = match dir {
+                Direction::In => (r + 1, s),
+                Direction::Out => (r - 1, s),
+                Direction::Right => {
+                    if s > 0 {
+                        (r, s - 1)
+                    } else {
+                        (r, maze.spokes - 1)
+                    }
+                }
+                Direction::Left => {
+                    if s < maze.spokes - 1 {
+                        (r, s + 1)
+                    } else {
+                        (r, 0)
+                    }
+                }
+            };
+            visited.insert((nr, ns));
+            visited_list.push((nr, ns));
+            stack.push((nr, ns));
+        }
+        if visited.contains(&stop) {
+            break;
+        }
+    }
+    let mut solution_list: Vec<(usize, usize)> = Vec::new();
+    let mut current: (usize, usize) = visited_list.pop().unwrap();
+    solution_list.push(current);
+    maze.add_cell_to_solution(current.0, current.1);
+    for v in visited_list.iter().rev() {
+        current = *v;
+        let mut neighbor_set: HashSet<(usize, usize)> = HashSet::from([(current.0 + 1, current.1)]);
+        if current.0 > 0 {
+            neighbor_set.insert((current.0 - 1, current.1));
+        }
+        if current.1 > 0 {
+            neighbor_set.insert((current.0, current.1 - 1));
+        } else {
+            neighbor_set.insert((current.0, maze.spokes - 1));
+        }
+        if current.1 < maze.spokes - 1 {
+            neighbor_set.insert((current.0, current.1 + 1));
+        } else {
+            neighbor_set.insert((current.0, 0));
+        }
+        if neighbor_set.contains(solution_list.last().unwrap()) {
+            solution_list.push(current);
+            maze.add_cell_to_solution(current.0, current.1);
+        }
+    }
 }
