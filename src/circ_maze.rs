@@ -56,7 +56,7 @@ impl Cell {
 pub struct CircMaze {
     pub rings: usize,
     pub spokes: usize,
-    pub cells: Vec<Cell>,
+    pub cells: Vec<Vec<Cell>>,
     pub split_frequency: usize,
 }
 
@@ -64,9 +64,11 @@ impl CircMaze {
     pub fn new(rings: usize, spokes: usize, split_frequency: usize) -> CircMaze {
         let mut cells = Vec::new();
         for _ in 0..rings {
+            let mut r_cells = Vec::new();
             for _ in 0..spokes {
-                cells.push(Cell::new());
+                r_cells.push(Cell::new());
             }
+            cells.push(r_cells);
         }
         CircMaze {
             rings,
@@ -80,23 +82,25 @@ impl CircMaze {
         self.set(self.rings - 1, self.spokes / 2, &Direction::In, false);
     }
     pub fn reset(&mut self) {
-        for cell in self.cells.iter_mut() {
-            cell.reset();
+        for r_cells in self.cells.iter_mut() {
+            for cell in r_cells.iter_mut() {
+                cell.reset();
+            }
         }
     }
     pub fn get(&self, ring: usize, spoke: usize) -> Cell {
-        self.cells[ring * self.spokes + spoke]
+        self.cells[ring][spoke]
     }
     pub fn set(&mut self, ring: usize, spoke: usize, direction: &Direction, value: bool) {
         match direction {
-            Direction::Out => self.cells[ring * self.spokes + spoke].outward = value,
-            Direction::In => self.cells[ring * self.spokes + spoke].inward = value,
-            Direction::Left => self.cells[ring * self.spokes + spoke].left = value,
-            Direction::Right => self.cells[ring * self.spokes + spoke].right = value,
+            Direction::Out => self.cells[ring][spoke].outward = value,
+            Direction::In => self.cells[ring][spoke].inward = value,
+            Direction::Left => self.cells[ring][spoke].left = value,
+            Direction::Right => self.cells[ring][spoke].right = value,
         }
     }
     pub fn add_cell_to_solution(&mut self, ring: usize, spoke: usize) {
-        self.cells[ring * self.spokes + spoke].add_to_solution();
+        self.cells[ring][spoke].add_to_solution();
     }
     pub fn is_wall_at_dir(&self, r: usize, dir: &Direction) -> bool {
         match dir {
