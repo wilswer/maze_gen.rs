@@ -1,7 +1,6 @@
-use rand::{
-    distributions::{Distribution, WeightedIndex},
-    Rng,
-};
+use rand::distr::weighted::WeightedIndex;
+use rand::distr::Distribution;
+use rand::RngExt;
 use std::{
     collections::HashSet,
     fs::File,
@@ -10,6 +9,21 @@ use std::{
 use svg::node::element::path::Data;
 use svg::node::element::{Path, Rectangle};
 use svg::Document;
+
+/// Convert an SVG string to a standalone PDF buffer using the svg2pdf 0.13 API.
+fn svg_to_pdf(svg: &str) -> std::result::Result<Vec<u8>, String> {
+    let mut options = svg2pdf::usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+    let tree = svg2pdf::usvg::Tree::from_str(svg, &options)
+        .map_err(|e| format!("{}", e))?;
+    let pdf = svg2pdf::to_pdf(
+        &tree,
+        svg2pdf::ConversionOptions::default(),
+        svg2pdf::PageOptions::default(),
+    )
+    .map_err(|e| format!("{:?}", e))?;
+    Ok(pdf)
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Direction {
@@ -292,8 +306,7 @@ impl RectMaze {
         }
         svg::save(format!("{}.svg", path.unwrap_or("maze.svg")), &document).unwrap();
         let svg = std::fs::read_to_string(format!("{}.svg", path.unwrap_or("maze"))).unwrap();
-        let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default());
-        let ok_pdf = match pdf {
+        let ok_pdf = match svg_to_pdf(&svg) {
             Ok(pdf) => {
                 std::fs::write(format!("{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
                 true
@@ -313,7 +326,7 @@ impl RectMaze {
                 cell_size * self.height + 2 * margin,
             ),
         );
-        if solution_marks.is_empty() {
+        if !solution_marks.is_empty() {
             for rect in solution_marks {
                 document = document.add(rect);
             }
@@ -324,7 +337,7 @@ impl RectMaze {
             if ok_pdf {
                 let svg =
                     std::fs::read_to_string(format!("sol_{}.svg", path.unwrap_or("maze"))).unwrap();
-                let pdf = svg2pdf::convert_str(&svg, svg2pdf::Options::default()).unwrap();
+                let pdf = svg_to_pdf(&svg).unwrap();
                 std::fs::write(format!("sol_{}.pdf", path.unwrap_or("maze")), pdf).unwrap();
             }
         }
@@ -347,7 +360,7 @@ pub fn generate(width: usize, height: usize, bias: f64, length_bias: f64) -> Rec
         Direction::Left,
         Direction::Right,
     ];
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     visited.insert((x, y));
     stack.push((x, y));
     loop {
@@ -368,7 +381,7 @@ pub fn generate(width: usize, height: usize, bias: f64, length_bias: f64) -> Rec
         }
         if !unvisited_neighbors.is_empty() {
             stack.push((x, y));
-            // dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            // dir_index = rng.random_range(0..unvisited_neighbors.len());
             // dir = unvisited_neighbors[dir_index];
             let dist = WeightedIndex::new(unvisited_neighbors.iter().map(|item| item.1)).unwrap();
             dir = unvisited_neighbors[dist.sample(&mut rng)].0;
@@ -403,7 +416,7 @@ pub fn solve(maze: &mut RectMaze, start: (usize, usize), stop: (usize, usize)) {
         Direction::Left,
         Direction::Right,
     ];
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     visited.insert((x, y));
     visited_list.push((x, y));
     stack.push((x, y));
@@ -425,7 +438,7 @@ pub fn solve(maze: &mut RectMaze, start: (usize, usize), stop: (usize, usize)) {
         }
         if !unvisited_neighbors.is_empty() {
             stack.push((x, y));
-            dir_index = rng.gen_range(0..unvisited_neighbors.len());
+            dir_index = rng.random_range(0..unvisited_neighbors.len());
             dir = unvisited_neighbors[dir_index];
             let (nx, ny) = match dir {
                 Direction::Up => (x, y - 1),

@@ -1,12 +1,12 @@
 [package]
 name = "maze_gen"
 version = "0.1.0"
-edition = "2018"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8.3"
+rand = "0.10"
 clap = { version = "4.0", features = ["derive"] }
-svg = "0.13.0"
-svg2pdf = "0.4.1"
+svg = "0.18"
+svg2pdf = "0.13"

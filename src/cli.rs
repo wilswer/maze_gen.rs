@@ -48,8 +48,10 @@ pub enum Commands {
         /// Bars/spokes of the maze
         #[clap(long, short, default_value_t = 8)]
         bar: usize,
-        /// Split frequency, how often to split a spoke
-        #[clap(long, short, default_value_t = 0)]
+        /// Base number of spokes of the innermost ring; outer rings subdivide
+        /// (double) every `frequency` rings so cells keep a roughly constant
+        /// width. Set to 0 to disable subdivision.
+        #[clap(long, short, default_value_t = 2)]
         frequency: usize,
         #[clap(long, short, default_value_t = 0.5)]
         /// Size of the inner radius
