@@ -11,7 +11,7 @@ use svg::node::element::path::Data;
 use svg::node::element::{Path, Rectangle};
 use svg::Document;
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Direction {
     Up,
     Down,
@@ -19,7 +19,7 @@ pub enum Direction {
     Right,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Cell {
     pub up: bool,
     pub down: bool,
@@ -28,15 +28,21 @@ pub struct Cell {
     pub in_solution: bool,
 }
 
-impl Cell {
-    pub fn new() -> Cell {
-        Cell {
+impl Default for Cell {
+    fn default() -> Self {
+        Self {
             up: true,
             down: true,
             left: true,
             right: true,
             in_solution: false,
         }
+    }
+}
+
+impl Cell {
+    pub fn new() -> Self {
+        Self::default()
     }
     pub fn reset(&mut self) {
         self.up = true;
@@ -64,16 +70,20 @@ impl RectMaze {
             cells: vec![Cell::new(); width * height],
         }
     }
+
     pub fn open_start_and_end(&mut self) {
         self.set(0, 0, &Direction::Up, false);
         self.set(self.width - 1, self.height - 1, &Direction::Down, false);
     }
+
     pub fn get(&self, x: usize, y: usize) -> Cell {
         self.cells[y * self.width + x]
     }
+
     pub fn add_cell_to_solution(&mut self, x: usize, y: usize) {
         self.cells[y * self.width + x].add_to_solution();
     }
+
     pub fn set(&mut self, x: usize, y: usize, dir: &Direction, val: bool) {
         match dir {
             Direction::Up => self.cells[y * self.width + x].up = val,
@@ -82,6 +92,7 @@ impl RectMaze {
             Direction::Right => self.cells[y * self.width + x].right = val,
         }
     }
+
     pub fn reset(&mut self) {
         for cell in self.cells.iter_mut() {
             cell.reset();
@@ -155,20 +166,20 @@ impl RectMaze {
                     horizontal_wall_str += "---┼";
                 }
                 if self.is_open_at_dir(x, y, &Direction::Right) {
-                    if self.get(x, y).in_solution == true {
+                    if self.get(x, y).in_solution {
                         vertical_wall_str += " x  ";
                     } else {
                         vertical_wall_str += "    ";
                     }
                 } else {
-                    if self.get(x, y).in_solution == true {
+                    if self.get(x, y).in_solution {
                         vertical_wall_str += " x │";
                     } else {
                         vertical_wall_str += "   │";
                     }
                 }
             }
-            if self.get(self.width - 1, y).in_solution == true {
+            if self.get(self.width - 1, y).in_solution {
                 vertical_wall_str += " x │";
             } else {
                 vertical_wall_str += "   │";
@@ -185,20 +196,20 @@ impl RectMaze {
         vertical_wall_str += "│";
         for x in 0..self.width - 1 {
             if self.is_open_at_dir(x, self.height - 1, &Direction::Right) {
-                if self.get(x, self.height - 1).in_solution == true {
+                if self.get(x, self.height - 1).in_solution {
                     vertical_wall_str += " x  ";
                 } else {
                     vertical_wall_str += "    ";
                 }
             } else {
-                if self.get(x, self.height - 1).in_solution == true {
+                if self.get(x, self.height - 1).in_solution {
                     vertical_wall_str += " x │";
                 } else {
                     vertical_wall_str += "   │";
                 }
             }
         }
-        if self.get(self.width - 1, self.height - 1).in_solution == true {
+        if self.get(self.width - 1, self.height - 1).in_solution {
             vertical_wall_str += " x │";
         } else {
             vertical_wall_str += "   │";
@@ -212,7 +223,7 @@ impl RectMaze {
         if do_print {
             print!("{}", maze_str);
         }
-        if !path.is_none() {
+        if path.is_some() {
             let mut file = File::create(path.unwrap())?;
             file.write_all(maze_str.as_bytes())?;
             return Ok(());
@@ -302,7 +313,7 @@ impl RectMaze {
                 cell_size * self.height + 2 * margin,
             ),
         );
-        if solution_marks.len() > 0 {
+        if solution_marks.is_empty() {
             for rect in solution_marks {
                 document = document.add(rect);
             }
@@ -355,7 +366,7 @@ pub fn generate(width: usize, height: usize, bias: f64, length_bias: f64) -> Rec
                 }
             }
         }
-        if unvisited_neighbors.len() > 0 {
+        if !unvisited_neighbors.is_empty() {
             stack.push((x, y));
             // dir_index = rng.gen_range(0..unvisited_neighbors.len());
             // dir = unvisited_neighbors[dir_index];
@@ -371,7 +382,7 @@ pub fn generate(width: usize, height: usize, bias: f64, length_bias: f64) -> Rec
             visited.insert((nx, ny));
             stack.push((nx, ny));
         }
-        if stack.len() == 0 {
+        if stack.is_empty() {
             break;
         }
     }
@@ -412,7 +423,7 @@ pub fn solve(maze: &mut RectMaze, start: (usize, usize), stop: (usize, usize)) {
                 }
             }
         }
-        if unvisited_neighbors.len() > 0 {
+        if !unvisited_neighbors.is_empty() {
             stack.push((x, y));
             dir_index = rng.gen_range(0..unvisited_neighbors.len());
             dir = unvisited_neighbors[dir_index];

@@ -23,9 +23,9 @@ pub struct Cell {
     pub in_solution: bool,
 }
 
-impl Cell {
-    pub fn new() -> Cell {
-        Cell {
+impl Default for Cell {
+    fn default() -> Self {
+        Self {
             outward: true,
             inward: true,
             left: true,
@@ -33,6 +33,13 @@ impl Cell {
             in_solution: false,
         }
     }
+}
+
+impl Cell {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn reset(&mut self) {
         self.outward = true;
         self.inward = true;
@@ -317,7 +324,7 @@ pub fn generate(
                 }
             }
         }
-        if unvisited_neighbors.len() > 0 {
+        if !unvisited_neighbors.is_empty() {
             stack.push((r, s));
             // let dir_index = rng.gen_range(0..unvisited_neighbors.len());
             // dir = unvisited_neighbors[dir_index];
@@ -346,7 +353,7 @@ pub fn generate(
             visited.insert((nr, ns));
             stack.push((nr, ns));
         }
-        if stack.len() == 0 {
+        if stack.is_empty() {
             break;
         }
     }
@@ -399,7 +406,7 @@ pub fn solve(maze: &mut CircMaze, start: (usize, usize), stop: (usize, usize)) {
                 }
             }
         }
-        if unvisited_neighbors.len() > 0 {
+        if !unvisited_neighbors.is_empty() {
             stack.push((r, s));
             dir_index = rng.gen_range(0..unvisited_neighbors.len());
             dir = unvisited_neighbors[dir_index];
