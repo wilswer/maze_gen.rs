@@ -29,7 +29,6 @@ pub fn main() {
         Some(Commands::Circ {
             rings,
             bar,
-            frequency,
             inner_radius,
             bias,
             length_bias,
@@ -38,8 +37,7 @@ pub fn main() {
             output,
             solve,
         }) => {
-            let mut maze = circ_maze::generate(*rings, *bar, *frequency, *bias, *length_bias);
-            // let mut maze = circ_maze::CircMaze::new(*rings, *bar, *freq);
+            let mut maze = circ_maze::generate(*rings, *bar, *inner_radius, *bias, *length_bias);
             maze.open_start_and_end();
             if *solve {
                 circ_maze::solve(&mut maze, (0, 0), (*rings - 1, *bar / 2));
@@ -48,7 +46,6 @@ pub fn main() {
                 Some(output.as_str()),
                 *wall_thickness / 10.0,
                 *transparency,
-                *inner_radius,
             )
             .unwrap();
         }

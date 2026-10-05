@@ -23,14 +23,12 @@ fn neighbors(maze: &CircMaze, r: usize, s: usize) -> Vec<(usize, usize)> {
     let sp = maze.spokes[r];
     let mut out = vec![(r, (s + 1) % sp), (r, (s + sp - 1) % sp)];
     if r > 0 {
-        let step = maze.spokes[r - 1] / sp;
-        for k in (s * step)..(s * step + step) {
+        for k in maze.children(r, s) {
             out.push((r - 1, k));
         }
     }
     if r + 1 < maze.rings {
-        let step = sp / maze.spokes[r + 1];
-        out.push((r + 1, s / step));
+        out.push((r + 1, maze.parent[r][s]));
     }
     out
 }
@@ -80,29 +78,52 @@ fn total_cells(maze: &CircMaze) -> usize {
 }
 
 #[test]
-fn test_circ_spoke_doubling() {
-    // rings=5, base=8, freq=2: levels from innermost outward are 0,0,1,1,2
-    let maze = CircMaze::new(5, 8, 2);
-    assert_eq!(maze.spokes, vec![32, 16, 16, 8, 8]);
+fn test_circ_spokes_grow_linearly() {
+    // inner_radius=0.5 puts ring mid radii at 1, 2, 3, ... so the counts are
+    // exact multiples of the base.
+    let maze = CircMaze::new(5, 8, 0.5);
+    assert_eq!(maze.spokes, vec![40, 32, 24, 16, 8]);
 }
 
 #[test]
-fn test_circ_no_subdivision_when_freq_zero() {
-    let maze = CircMaze::new(4, 7, 0);
-    assert!(maze.spokes.iter().all(|&s| s == 7));
+fn test_circ_layout_is_consistent() {
+    for (rings, base, inner) in [(6, 8, 0.5), (12, 6, 1.0), (20, 5, 2.3), (8, 4, 0.0)] {
+        let maze = CircMaze::new(rings, base, inner);
+        assert_eq!(maze.spokes[rings - 1], base, "innermost keeps base");
+        for r in 0..rings {
+            let b = &maze.bounds[r];
+            assert_eq!(b[0], 0.0);
+            assert!(b.windows(2).all(|w| w[0] < w[1]), "bounds strictly increase");
+        }
+        for r in 0..rings - 1 {
+            let (outer, inner_b) = (&maze.bounds[r], &maze.bounds[r + 1]);
+            assert!(maze.spokes[r] >= maze.spokes[r + 1]);
+            assert!(maze.spokes[r] <= 2 * maze.spokes[r + 1]);
+            for (k, &p) in maze.parent[r].iter().enumerate() {
+                // Each outer cell lies within its parent's angular extent.
+                let p_end = inner_b.get(p + 1).copied().unwrap_or(1.0);
+                let k_end = outer.get(k + 1).copied().unwrap_or(1.0);
+                assert!(inner_b[p] <= outer[k] && k_end <= p_end);
+            }
+            // Every inner boundary is also an outer boundary (walls line up).
+            for x in inner_b {
+                assert!(outer.contains(x));
+            }
+        }
+    }
 }
 
 #[test]
-fn test_circ_maze_is_perfect_no_subdivision() {
-    let maze = circ_maze::generate(5, 8, 0, 0.5, 0.0);
+fn test_circ_maze_is_perfect_small() {
+    let maze = circ_maze::generate(5, 8, 0.5, 0.5, 0.0);
     let reach = reachable(&maze, (0, 0));
     assert_eq!(reach.len(), total_cells(&maze));
 }
 
 #[test]
 fn test_circ_maze_is_perfect_with_subdivision() {
-    for (rings, base, freq) in [(4, 8, 2), (6, 6, 1), (8, 8, 2), (10, 4, 3), (12, 8, 2)] {
-        let maze = circ_maze::generate(rings, base, freq, 0.3, 0.1);
+    for (rings, base, inner) in [(4, 8, 0.5), (6, 6, 1.0), (8, 8, 0.0), (10, 4, 3.0), (12, 8, 0.7)] {
+        let maze = circ_maze::generate(rings, base, inner, 0.3, 0.1);
         assert_eq!(maze.spokes.len(), rings);
         assert_eq!(maze.spokes[rings - 1], base, "innermost keeps base");
         for r in 1..rings {
@@ -112,17 +133,17 @@ fn test_circ_maze_is_perfect_with_subdivision() {
         assert_eq!(
             reach.len(),
             total_cells(&maze),
-            "every cell reachable (rings={}, base={}, freq={})",
+            "every cell reachable (rings={}, base={}, inner={})",
             rings,
             base,
-            freq
+            inner
         );
     }
 }
 
 #[test]
 fn test_circ_solve_connects_start_and_stop() {
-    let mut maze = circ_maze::generate(7, 8, 2, 0.5, 0.0);
+    let mut maze = circ_maze::generate(7, 8, 0.5, 0.5, 0.0);
     maze.open_start_and_end();
     let stop = (maze.rings - 1, maze.spokes[maze.rings - 1] / 2);
     circ_maze::solve(&mut maze, (0, 0), stop);

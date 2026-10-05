@@ -1,12 +1,12 @@
-use rand::distr::weighted::WeightedIndex;
-use rand::distr::Distribution;
 use rand::RngExt;
+use rand::distr::Distribution;
+use rand::distr::weighted::WeightedIndex;
 use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
 use std::io::Result;
-use svg::node::element::path::Data;
-use svg::node::element::Path;
 use svg::Document;
+use svg::node::element::Path;
+use svg::node::element::path::Data;
 
 /// Convert an SVG string to a standalone PDF buffer using the svg2pdf 0.13 API.
 fn svg_to_pdf(svg: &str) -> std::result::Result<Vec<u8>, String> {
@@ -44,25 +44,33 @@ enum WallId {
     Angular { ring: usize, idx: usize },
     /// Radial wall `radial[outer][idx]`: the arc wall on the inner edge of
     /// outer cell `(outer, idx)`, i.e. the boundary between ring `outer` and
-    /// ring `outer + 1`. It is stored per outer-ring cell because the outer
-    /// ring always has at least as many spokes as the inner one.
+    /// ring `outer + 1`. It is stored per outer-ring cell because every outer
+    /// cell lies entirely within a single inner (parent) cell.
     Radial { outer: usize, idx: usize },
 }
 
 pub struct CircMaze {
     pub rings: usize,
-    /// Number of spokes of the innermost (smallest) ring. Outer rings may have
-    /// more, doubling every `split_frequency` rings.
+    /// Number of spokes of the innermost (smallest) ring. Outer rings get
+    /// proportionally more, growing linearly with radius.
     pub base_spokes: usize,
-    /// How many rings apart the spoke count doubles. `0` disables subdivision.
-    pub split_frequency: usize,
+    /// Radius of the central hole; ring `rings - 1` spans
+    /// `inner_radius..inner_radius + 1`.
+    pub inner_radius: f64,
     /// `spokes[r]` = number of cells in ring `r`. Ring `0` is the outermost.
     pub spokes: Vec<usize>,
+    /// `bounds[r][s]`: start angle of cell `(r, s)` as a fraction of a full
+    /// turn. The cell ends at `bounds[r][s + 1]` (or `1.0` for the last cell).
+    /// Cells within a ring may differ in width.
+    pub bounds: Vec<Vec<f64>>,
+    /// `parent[r][k]` for `r in 0..rings-1`: index of the cell in ring `r + 1`
+    /// that outer cell `(r, k)` sits on. Non-decreasing in `k`.
+    pub parent: Vec<Vec<usize>>,
     /// `angular[r][s]`: wall between `(r, s)` and `(r, (s+1) % spokes[r])`.
     /// `true` means the wall is present.
     pub angular: Vec<Vec<bool>>,
     /// `radial[r][k]` for `r in 0..rings-1`: wall between outer cell `(r, k)`
-    /// and inner cell `(r+1, k / (spokes[r] / spokes[r+1]))`. `true` = present.
+    /// and inner cell `(r+1, parent[r][k])`. `true` = present.
     pub radial: Vec<Vec<bool>>,
     /// Outermost boundary arc per cell of ring `0`. `true` = wall present.
     pub outer_wall: Vec<bool>,
@@ -72,30 +80,95 @@ pub struct CircMaze {
     pub in_solution: Vec<Vec<bool>>,
 }
 
-/// Compute the per-ring spoke counts so that the spoke count doubles every
-/// `split_frequency` rings as you move outward from the innermost ring.
-fn compute_spokes(rings: usize, base_spokes: usize, split_frequency: usize) -> Vec<usize> {
-    if rings == 0 {
-        return Vec::new();
+/// End angle (fraction of a turn) of cell `s` in a ring with start angles `bounds`.
+fn cell_end(bounds: &[f64], s: usize) -> f64 {
+    bounds.get(s + 1).copied().unwrap_or(1.0)
+}
+
+/// Decide which cells of a ring to split in half when growing outward.
+///
+/// `widths[s]` is the angular width (fraction of a turn) of cell `s`, in
+/// angular order around the ring. Exactly `count` cells must be marked
+/// (`count <= widths.len()`). Returns `split[s] == true` for each chosen cell.
+fn choose_splits(widths: &[f64], count: usize) -> Vec<bool> {
+    let mut split = vec![false; widths.len()];
+    let mut remaining = count;
+    let mut sorted = widths.to_vec();
+    sorted.sort_by(|a, b| b.total_cmp(a));
+    sorted.dedup();
+    // Widest first; within a group of equal widths, pick evenly spaced cells.
+    // Widths are exact dyadic fractions, so `==` groups ties reliably.
+    for w in sorted {
+        if remaining == 0 {
+            break;
+        }
+        let tied: Vec<usize> = (0..widths.len()).filter(|&s| widths[s] == w).collect();
+        let take = remaining.min(tied.len());
+        for i in 0..take {
+            split[tied[i * tied.len() / take]] = true;
+        }
+        remaining -= take;
     }
-    let mut spokes = vec![base_spokes; rings];
-    if split_frequency == 0 {
-        return spokes;
+    split
+}
+
+/// Lay out the cells of every ring. The innermost ring has `base_spokes`
+/// equal cells; each ring further out splits some of its inner neighbour's
+/// cells in half so that the cell count grows linearly with the ring's mid
+/// radius (keeping the arc width per cell roughly constant).
+///
+/// Returns `(bounds, parent)` indexed outermost-first, as stored in `CircMaze`.
+fn compute_layout(
+    rings: usize,
+    base_spokes: usize,
+    inner_radius: f64,
+) -> (Vec<Vec<f64>>, Vec<Vec<usize>>) {
+    if rings == 0 || base_spokes == 0 {
+        return (
+            vec![Vec::new(); rings],
+            vec![Vec::new(); rings.saturating_sub(1)],
+        );
     }
-    // The innermost ring (`rings - 1`) keeps `base_spokes`; moving outward
-    // (decreasing `r`) the level increases every `split_frequency` rings.
-    for r in 0..rings {
-        let dist_from_inner = (rings - 1) - r;
-        let level = (dist_from_inner / split_frequency) as u32;
-        // Cap the shift to avoid overflow on absurd inputs.
-        spokes[r] = base_spokes.saturating_mul(1usize << level.min(20));
+    let rho0 = inner_radius + 0.5;
+    // Built innermost-first and reversed at the end.
+    let mut bounds: Vec<Vec<f64>> = vec![
+        (0..base_spokes)
+            .map(|s| s as f64 / base_spokes as f64)
+            .collect(),
+    ];
+    let mut parents: Vec<Vec<usize>> = Vec::new();
+    for i in 1..rings {
+        let inner = bounds.last().unwrap();
+        let n_in = inner.len();
+        let rho = rho0 + i as f64;
+        let target = (base_spokes as f64 * rho / rho0).round() as usize;
+        // Each cell can be split at most once per ring.
+        let extra = target.saturating_sub(n_in).min(n_in);
+        let widths: Vec<f64> = (0..n_in).map(|s| cell_end(inner, s) - inner[s]).collect();
+        let split = choose_splits(&widths, extra);
+
+        let mut outer = Vec::with_capacity(n_in + extra);
+        let mut parent = Vec::with_capacity(n_in + extra);
+        for s in 0..n_in {
+            outer.push(inner[s]);
+            parent.push(s);
+            if split[s] {
+                outer.push(inner[s] + widths[s] / 2.0);
+                parent.push(s);
+            }
+        }
+        bounds.push(outer);
+        parents.push(parent);
     }
-    spokes
+    bounds.reverse();
+    parents.reverse();
+    (bounds, parents)
 }
 
 impl CircMaze {
-    pub fn new(rings: usize, base_spokes: usize, split_frequency: usize) -> CircMaze {
-        let spokes = compute_spokes(rings, base_spokes, split_frequency);
+    pub fn new(rings: usize, base_spokes: usize, inner_radius: f64) -> CircMaze {
+        let (bounds, parent) = compute_layout(rings, base_spokes, inner_radius);
+        let spokes: Vec<usize> = bounds.iter().map(|b| b.len()).collect();
         let angular = spokes.iter().map(|&sp| vec![true; sp]).collect();
         let radial = (0..rings.saturating_sub(1))
             .map(|r| vec![true; spokes[r]])
@@ -106,8 +179,10 @@ impl CircMaze {
         CircMaze {
             rings,
             base_spokes,
-            split_frequency,
+            inner_radius,
             spokes,
+            bounds,
+            parent,
             angular,
             radial,
             outer_wall,
@@ -162,11 +237,7 @@ impl CircMaze {
     /// separating them and the direction of the neighbour. Across a subdivision
     /// boundary an inner-ring cell has two outward neighbours (one per outer
     /// half-arc), each with its own wall.
-    fn neighbors(
-        &self,
-        r: usize,
-        s: usize,
-    ) -> Vec<((usize, usize), Direction, WallId)> {
+    fn neighbors(&self, r: usize, s: usize) -> Vec<((usize, usize), Direction, WallId)> {
         let sp = self.spokes[r];
         let mut out = Vec::with_capacity(6);
 
@@ -181,37 +252,51 @@ impl CircMaze {
         out.push((
             (r, right),
             Direction::Right,
-            WallId::Angular { ring: r, idx: right },
+            WallId::Angular {
+                ring: r,
+                idx: right,
+            },
         ));
 
-        // Outward (toward ring `r - 1`, larger radius). The outer ring has at
-        // least as many spokes as this ring; `step` is the ratio (1 or 2).
+        // Outward (toward ring `r - 1`, larger radius): the outer cells whose
+        // parent is this cell (one, or two if this cell was split).
         if r > 0 {
-            let outer_spokes = self.spokes[r - 1];
-            let step = outer_spokes / sp;
-            for k in (s * step)..(s * step + step) {
+            for k in self.children(r, s) {
                 out.push((
                     (r - 1, k),
                     Direction::Out,
-                    WallId::Radial { outer: r - 1, idx: k },
+                    WallId::Radial {
+                        outer: r - 1,
+                        idx: k,
+                    },
                 ));
             }
         }
 
-        // Inward (toward ring `r + 1`, smaller radius). The inner ring has at
-        // most as many spokes; collapse `s` down to the inner spoke index.
+        // Inward (toward ring `r + 1`, smaller radius): the single parent cell.
         if r + 1 < self.rings {
-            let inner_spokes = self.spokes[r + 1];
-            let step = sp / inner_spokes;
-            let j = s / step;
             out.push((
-                (r + 1, j),
+                (r + 1, self.parent[r][s]),
                 Direction::In,
                 WallId::Radial { outer: r, idx: s },
             ));
         }
 
         out
+    }
+
+    /// Indices of the cells in ring `r - 1` that sit on cell `(r, s)`.
+    /// Requires `r > 0`. Contiguous because `parent[r - 1]` is sorted.
+    pub fn children(&self, r: usize, s: usize) -> std::ops::Range<usize> {
+        let p = &self.parent[r - 1];
+        p.partition_point(|&x| x < s)..p.partition_point(|&x| x <= s)
+    }
+
+    /// Angular extent `(start, end)` of cell `(r, s)` in radians, measured
+    /// from the layout origin (before the drawing rotation is applied).
+    fn cell_angles(&self, r: usize, s: usize) -> (f64, f64) {
+        let b = &self.bounds[r];
+        (2.0 * PI * b[s], 2.0 * PI * cell_end(b, s))
     }
 
     fn wall_present(&self, wall: WallId) -> bool {
@@ -232,25 +317,18 @@ impl CircMaze {
     /// solved (i.e. some cells are marked as part of the solution), an
     /// additional `sol_*.svg` / `sol_*.pdf` overlay showing the solution path
     /// in red is also written.
-    pub fn draw(
-        &self,
-        path: Option<&str>,
-        line_thickness: f64,
-        transparency: f64,
-        inner_radius: f64,
-    ) -> Result<()> {
-        if self.rings == 0 {
+    pub fn draw(&self, path: Option<&str>, line_thickness: f64, transparency: f64) -> Result<()> {
+        if self.rings == 0 || self.base_spokes == 0 {
             return Ok(());
         }
 
         let margin = 0.5;
-        let outer_radius = self.rings as f64 + inner_radius;
+        let outer_radius = self.rings as f64 + self.inner_radius;
         let translate = outer_radius + margin;
         // Choose the global angular origin so that outermost cell 0 is centred
-        // at the top. All rings share this origin, which guarantees that the
-        // angular boundaries of a ring and its subdivided neighbour coincide
-        // (every other outer boundary lines up with an inner one).
-        let phi0 = -PI / 2.0 - PI / (self.spokes[0] as f64);
+        // at the top. All rings share this origin, and every outer boundary is
+        // either an inner boundary or the midpoint of a split inner cell.
+        let phi0 = -PI / 2.0 - self.cell_angles(0, 0).1 / 2.0;
 
         let to_pt = |rho: f64, phi: f64| -> (f64, f64) {
             (rho * phi.cos() + translate, rho * phi.sin() + translate)
@@ -272,8 +350,8 @@ impl CircMaze {
             let rho_outer = outer_radius - r as f64;
             let rho_inner = outer_radius - r as f64 - 1.0;
             for s in 0..sp {
-                let phi_lo = 2.0 * PI * (s as f64) / (sp as f64) + phi0;
-                let phi_hi = 2.0 * PI * ((s + 1) as f64) / (sp as f64) + phi0;
+                let (a_lo, a_hi) = self.cell_angles(r, s);
+                let (phi_lo, phi_hi) = (a_lo + phi0, a_hi + phi0);
 
                 // Left radial wall: the angular boundary between this cell and
                 // the next (counter-clockwise). Drawn once per cell, so every
@@ -332,15 +410,8 @@ impl CircMaze {
                         .elliptical_arc_to((rho_outer, rho_outer, 0.0, 0, 1, po2.0, po2.1))
                         .line_to(pi1);
                     if rho_inner > 0.0 {
-                        data = data.elliptical_arc_to((
-                            rho_inner,
-                            rho_inner,
-                            0.0,
-                            0,
-                            0,
-                            pi2.0,
-                            pi2.1,
-                        ));
+                        data =
+                            data.elliptical_arc_to((rho_inner, rho_inner, 0.0, 0, 0, pi2.0, pi2.1));
                     } else {
                         // Degenerate inner edge (inner_radius == 0): collapse to
                         // the centre point rather than emitting a zero-radius arc.
@@ -406,16 +477,16 @@ impl CircMaze {
 /// Generate a circular maze using the recursive backtracker algorithm.
 ///
 /// `base_spokes` is the number of cells in the innermost ring; outer rings
-/// subdivide (double their spoke count) every `split_frequency` rings so that
-/// the arc width of a cell stays roughly constant as the circumference grows.
+/// split some of their inner neighbour's cells so the cell count grows
+/// linearly with radius and the arc width of a cell stays roughly constant.
 pub fn generate(
     rings: usize,
     base_spokes: usize,
-    split_frequency: usize,
+    inner_radius: f64,
     bias: f64,
     length_bias: f64,
 ) -> CircMaze {
-    let mut maze = CircMaze::new(rings, base_spokes, split_frequency);
+    let mut maze = CircMaze::new(rings, base_spokes, inner_radius);
     let mut visited: HashSet<(usize, usize)> = HashSet::new();
     let mut stack: Vec<(usize, usize)> = Vec::new();
 

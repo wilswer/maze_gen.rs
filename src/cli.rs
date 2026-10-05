@@ -45,14 +45,11 @@ pub enum Commands {
         /// Rings of the maze
         #[clap(long, short, default_value_t = 4)]
         rings: usize,
-        /// Bars/spokes of the maze
+        /// Bars/spokes of the innermost ring; outer rings get proportionally
+        /// more, growing linearly with radius so cells keep a roughly
+        /// constant width
         #[clap(long, short, default_value_t = 8)]
         bar: usize,
-        /// Base number of spokes of the innermost ring; outer rings subdivide
-        /// (double) every `frequency` rings so cells keep a roughly constant
-        /// width. Set to 0 to disable subdivision.
-        #[clap(long, short, default_value_t = 2)]
-        frequency: usize,
         #[clap(long, short, default_value_t = 0.5)]
         /// Size of the inner radius
         inner_radius: f64,
